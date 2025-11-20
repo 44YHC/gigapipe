@@ -82,7 +82,7 @@ func (q *PromQueryRangeController) QueryRange(w http.ResponseWriter, r *http.Req
 			return
 		}
 	}
-	rangeQuery, err := q.Api.QueryEngine.NewRangeQuery(q.Storage.SetOidAndDB(internalCtx, expr), nil,
+	rangeQuery, err := q.Api.QueryEngine.NewRangeQuery(internalCtx, q.Storage.SetOidAndDB(internalCtx, expr), nil,
 		expr.Expr.String(), req.Start, req.End, req.Step)
 	if err != nil {
 		logger.Error("[PQRC001] " + err.Error())
@@ -268,12 +268,14 @@ func writeMatrix(res *promql.Result, w http.ResponseWriter) error {
 		stream.WriteObjectField("metric")
 		stream.WriteObjectStart()
 
-		for j, v := range s.Metric {
+		j := 0
+		for name, value := range s.Metric.Map() {
 			if j > 0 {
 				stream.WriteMore()
 			}
-			stream.WriteObjectField(v.Name)
-			stream.WriteString(v.Value)
+			stream.WriteObjectField(name)
+			stream.WriteString(value)
+			j++
 		}
 
 		stream.WriteObjectEnd()
@@ -281,14 +283,14 @@ func writeMatrix(res *promql.Result, w http.ResponseWriter) error {
 		stream.WriteObjectField("values")
 		stream.WriteArrayStart()
 
-		for j, v := range s.Points {
+		for j, v := range s.Floats {
 			if j > 0 {
 				stream.WriteMore()
 			}
 			stream.WriteArrayStart()
 			stream.WriteFloat64(float64(v.T) / 1000)
 			stream.WriteMore()
-			stream.WriteString(strconv.FormatFloat(v.V, 'f', -1, 64))
+			stream.WriteString(strconv.FormatFloat(v.F, 'f', -1, 64))
 			stream.WriteArrayEnd()
 		}
 
@@ -336,12 +338,14 @@ func writeVector(res *promql.Result, w http.ResponseWriter) error {
 		stream.WriteObjectField("metric")
 		stream.WriteObjectStart()
 
-		for j, lbl := range s.Metric {
+		j := 0
+		for name, value := range s.Metric.Map() {
 			if j > 0 {
 				stream.WriteMore()
 			}
-			stream.WriteObjectField(lbl.Name)
-			stream.WriteString(lbl.Value)
+			stream.WriteObjectField(name)
+			stream.WriteString(value)
+			j++
 		}
 
 		stream.WriteObjectEnd()
@@ -350,7 +354,7 @@ func writeVector(res *promql.Result, w http.ResponseWriter) error {
 		stream.WriteArrayStart()
 		stream.WriteFloat64(float64(s.T) / 1000)
 		stream.WriteMore()
-		stream.WriteString(strconv.FormatFloat(s.V, 'f', -1, 64))
+		stream.WriteString(strconv.FormatFloat(s.F, 'f', -1, 64))
 		stream.WriteArrayEnd()
 		stream.WriteObjectEnd()
 

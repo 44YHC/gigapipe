@@ -14,6 +14,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/prometheus/prometheus/util/annotations"
+
 	"github.com/metrico/qryn/v4/reader/config"
 	"github.com/metrico/qryn/v4/reader/promql/promql_parser"
 
@@ -84,11 +86,11 @@ type CLokiQueriable struct {
 	Expr   *promql_parser.Expr
 }
 
-func (c *CLokiQueriable) Querier(ctx context.Context, mint, maxt int64) (storage.Querier, error) {
+func (c *CLokiQueriable) Querier(mint, maxt int64) (storage.Querier, error) {
 	if c.random == nil {
 		c.random = rand.New(rand.NewSource(time.Now().UnixNano()))
 	}
-	db, err := c.ServiceData.Session.GetDB(ctx)
+	db, err := c.ServiceData.Session.GetDB(c.Ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -211,7 +213,7 @@ func (c *CLokiQuerier) isProlong(hints *storage.SelectHints, matchers []*labels.
 	return (slices.Contains(rateFunctions, hints.Func) || hints.Func == "") && hints.Step != 0
 }
 
-func (c *CLokiQuerier) Select(sortSeries bool, hints *storage.SelectHints,
+func (c *CLokiQuerier) Select(ctx context.Context, sortSeries bool, hints *storage.SelectHints,
 	matchers ...*labels.Matcher,
 ) storage.SeriesSet {
 	var _matchers []*labels.Matcher
@@ -232,14 +234,14 @@ func (c *CLokiQuerier) Select(sortSeries bool, hints *storage.SelectHints,
 	if err != nil {
 		return &model.SeriesSet{Error: err}
 	}
-	ctx := sql.Ctx{
+	sqlCtx := sql.Ctx{
 		Params: map[string]sql.SQLObject{},
 	}
 	var opts []int
 	if c.db.Config.ClusterName != "" {
 		opts = []int{sql.STRING_OPT_INLINE_WITH}
 	}
-	str, err := q.Query.String(&ctx, opts...)
+	str, err := q.Query.String(&sqlCtx, opts...)
 	if err != nil {
 		return &model.SeriesSet{Error: err}
 	}
@@ -313,8 +315,8 @@ func (c *CLokiQuerier) Select(sortSeries bool, hints *storage.SelectHints,
 	}
 	c.ReshuffleSeries(res.Series)
 	sort.Slice(res.Series, func(i, j int) bool {
-		for k, l1 := range res.Series[i].Labels() {
-			l2 := res.Series[j].Labels()
+		for k, l1 := range res.Series[i].LabelsArray() {
+			l2 := res.Series[j].LabelsArray()
 			if k >= len(l2) {
 				return false
 			}
@@ -334,7 +336,7 @@ func (c *CLokiQuerier) ReshuffleSeries(series []*model.SeriesV2) {
 	seriesMap := make(map[uint64]*model.SeriesV2, len(series)*2)
 	for _, ent := range series {
 		labels := ent.LabelsGetter.Get(ent.Fp)
-		strLabels := make([][]byte, labels.Len())
+		strLabels := make([][]byte, len(labels))
 		for i, lbl := range labels {
 			strLabels[i] = []byte(lbl.Name + "=" + lbl.Value)
 		}
@@ -354,11 +356,11 @@ func (c *CLokiQuerier) ReshuffleSeries(series []*model.SeriesV2) {
 	}
 }
 
-func (c *CLokiQuerier) LabelValues(name string, matchers ...*labels.Matcher) ([]string, storage.Warnings, error) {
+func (c *CLokiQuerier) LabelValues(ctx context.Context, name string, hints *storage.LabelHints, matchers ...*labels.Matcher) ([]string, annotations.Annotations, error) {
 	return nil, nil, nil
 }
 
-func (c *CLokiQuerier) LabelNames(matchers ...*labels.Matcher) ([]string, storage.Warnings, error) {
+func (c *CLokiQuerier) LabelNames(ctx context.Context, hints *storage.LabelHints, matchers ...*labels.Matcher) ([]string, annotations.Annotations, error) {
 	return nil, nil, nil
 }
 
@@ -395,13 +397,13 @@ func newLabelsGetter(from time.Time, to time.Time, conn *model.DataDatabasesMap,
 	return res
 }
 
-func (l *labelsGetter) Get(fingerprint uint64) labels.Labels {
+func (l *labelsGetter) Get(fingerprint uint64) model.Labels {
 	strLabels, ok := l.fingerprintsHas[fingerprint]
 	if !ok {
 		logger.Error(fmt.Sprintf("Warning: no fingerprint %d found", fingerprint))
-		return labels.Labels{}
+		return model.Labels{}
 	}
-	res := make(labels.Labels, len(strLabels))
+	res := make(model.Labels, len(strLabels))
 	for i, label := range strLabels {
 		res[i] = labels.Label{
 			Name:  label[0],
@@ -412,6 +414,33 @@ func (l *labelsGetter) Get(fingerprint uint64) labels.Labels {
 		return res[i].Name < res[j].Name
 	})
 	return res
+}
+
+type labelsSort struct {
+	labels []string
+}
+
+func (l labelsSort) Len() int {
+	return len(l.labels) / 2
+}
+
+func (l labelsSort) Less(i, j int) bool {
+	return l.labels[i*2] < l.labels[j*2]
+}
+
+func (l labelsSort) Swap(i, j int) {
+	l.labels[i*2], l.labels[j*2] = l.labels[j*2], l.labels[i*2]
+	l.labels[i*2+1], l.labels[j*2+1] = l.labels[j*2+1], l.labels[i*2+1]
+}
+
+func (l *labelsGetter) GetNative(fingerprint uint64) labels.Labels {
+	_, ok := l.fingerprintsHas[fingerprint]
+	if !ok {
+		logger.Error(fmt.Sprintf("Warning: no fingerprint %d found", fingerprint))
+		return labels.EmptyLabels()
+	}
+	res := l.Get(fingerprint)
+	return labels.New(res...)
 }
 
 func (l *labelsGetter) Save(fingerprint uint64, labels [][]string) {

@@ -252,13 +252,13 @@ func portEnv(cfg *clconfig.ClokiConfig) error {
 		}
 	}
 
-	if os.Getenv("LOG_LEVEL") != "" {
-		cfg.Setting.LOG_SETTINGS.Level = os.Getenv("LOG_LEVEL")
-	}
-
 	cfg.Setting.ClokiReader.Compat_4_0_19, err = boolEnv("COMPAT_4_0_19")
 	if err != nil {
 		return err
+	}
+
+	if os.Getenv("LOG_LEVEL") != "" {
+		cfg.Setting.LOG_SETTINGS.Level = os.Getenv("LOG_LEVEL")
 	}
 
 	return nil
@@ -363,6 +363,7 @@ func initPyro() {
 		ApplicationName: applicationName,
 		ServerAddress:   serverAddress,
 		Logger:          pyroscope.StandardLogger,
+
 		ProfileTypes: []pyroscope.ProfileType{
 			pyroscope.ProfileCPU,
 			pyroscope.ProfileAllocObjects,
