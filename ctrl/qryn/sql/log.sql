@@ -185,3 +185,5 @@ CREATE TABLE IF NOT EXISTS {{.DB}}.patterns {{.OnCluster}}(
 ) ENGINE = {{.MergeTree}}
 PARTITION BY toDate(fromUnixTimestamp(timestamp_10m*600))
 ORDER BY (timestamp_10m, fingerprint) {{.CREATE_SETTINGS}};
+
+ALTER TABLE IF EXISTS {{.DB}}.time_series ADD COLUMN IF NOT EXISTS metadata String;
