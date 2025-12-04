@@ -77,4 +77,6 @@ CREATE TABLE IF NOT EXISTS {{.DB}}.patterns_dist {{.OnCluster}}(
     iteration_id UInt64
 ) ENGINE = Distributed('{{.CLUSTER}}','{{.DB}}', 'patterns', fingerprint) {{.DIST_CREATE_SETTINGS}};
 
-ALTER TABLE IF EXISTS {{.DB}}.time_series_dist ADD COLUMN IF NOT EXISTS metadata String;
+ALTER TABLE {{.DB}}.time_series_dist ADD COLUMN IF NOT EXISTS metadata String DEFAULT '';
+
+ALTER TABLE {{.DB}}.time_series_dist ADD COLUMN IF NOT EXISTS updated_at_ns Int64 DEFAULT toUnixTimestamp64Nano(now64(9));

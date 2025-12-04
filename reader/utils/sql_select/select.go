@@ -6,20 +6,22 @@ import (
 )
 
 type Select struct {
-	distinct bool
-	columns  []SQLObject
-	from     SQLObject
-	where    SQLCondition
-	preWhere SQLCondition
-	having   SQLCondition
-	groupBy  []SQLObject
-	orderBy  []SQLObject
-	limit    SQLObject
-	offset   SQLObject
-	withs    []*With
-	joins    []*Join
-	windows  []*WindowFunction
-	settings map[string]string
+	distinct     bool
+	columns      []SQLObject
+	from         SQLObject
+	where        SQLCondition
+	preWhere     SQLCondition
+	having       SQLCondition
+	groupBy      []SQLObject
+	orderBy      []SQLObject
+	limit        SQLObject
+	limitBy      SQLObject
+	limitByExprs []SQLObject
+	offset       SQLObject
+	withs        []*With
+	joins        []*Join
+	windows      []*WindowFunction
+	settings     map[string]string
 }
 
 func (s *Select) Distinct(distinct bool) ISelect {
@@ -211,6 +213,16 @@ func (s *Select) GetLimit() SQLObject {
 	return s.limit
 }
 
+func (s *Select) LimitBy(limit SQLObject, exprs ...SQLObject) ISelect {
+	s.limitBy = limit
+	s.limitByExprs = exprs
+	return s
+}
+
+func (s *Select) GetLimitBy() (SQLObject, []SQLObject) {
+	return s.limitBy, s.limitByExprs
+}
+
 func (s *Select) Offset(offset SQLObject) ISelect {
 	s.offset = offset
 	return s
@@ -318,6 +330,7 @@ func (s *Select) String(ctx *Ctx, options ...int) (string, error) {
 		renderer.having,
 		renderer.window,
 		renderer.orderBy,
+		renderer.limitBy,
 		renderer.limit,
 		renderer.offset,
 		renderer.settings,
@@ -519,6 +532,35 @@ func (r *selectRenderer) limit() error {
 	if str != "" {
 		r.res.WriteString(" LIMIT ")
 		r.res.WriteString(str)
+	}
+	return nil
+}
+
+func (r *selectRenderer) limitBy() error {
+	if r.s.limitBy == nil || len(r.s.limitByExprs) == 0 {
+		return nil
+	}
+	limitStr, err := r.s.limitBy.String(r.ctx, r.options...)
+	if err != nil {
+		return err
+	}
+	if limitStr == "" {
+		return nil
+	}
+
+	r.res.WriteString(" LIMIT ")
+	r.res.WriteString(limitStr)
+	r.res.WriteString(" BY ")
+
+	for i, expr := range r.s.limitByExprs {
+		if i != 0 {
+			r.res.WriteString(", ")
+		}
+		exprStr, err := expr.String(r.ctx, r.options...)
+		if err != nil {
+			return err
+		}
+		r.res.WriteString(exprStr)
 	}
 	return nil
 }
