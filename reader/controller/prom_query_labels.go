@@ -13,6 +13,7 @@ import (
 type PromQueryLabelsController struct {
 	Controller
 	QueryLabelsService *service.QueryLabelsService
+	MetadataService    *service.MetadataService
 }
 
 type promLabelsParams struct {
@@ -85,14 +86,48 @@ func (p *PromQueryLabelsController) LabelValues(w http.ResponseWriter, r *http.R
 
 func (p *PromQueryLabelsController) Metadata(w http.ResponseWriter, r *http.Request) {
 	defer tamePanic(w, r)
-	_, err := RunPreRequestPlugins(r)
+	internalCtx, err := RunPreRequestPlugins(r)
 	if err != nil {
 		PromError(500, err.Error(), w)
 		return
 	}
-	w.WriteHeader(200)
+
+	metricFilter := r.URL.Query().Get("metric")
+	limitStr := r.URL.Query().Get("limit")
+	limitPerMetricStr := r.URL.Query().Get("limit_per_metric")
+
+	limit := 0
+	if limitStr != "" {
+		if parsedLimit, err := strconv.Atoi(limitStr); err == nil && parsedLimit > 0 {
+			limit = parsedLimit
+		}
+	}
+
+	limitPerMetric := 0
+	if limitPerMetricStr != "" {
+		if parsedLimit, err := strconv.Atoi(limitPerMetricStr); err == nil && parsedLimit > 0 {
+			limitPerMetric = parsedLimit
+		}
+	}
+
+	if p.MetadataService == nil {
+		w.WriteHeader(200)
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"status": "success", "data": {}}`))
+		return
+	}
+
+	res, err := p.MetadataService.Metadata(internalCtx, metricFilter, limit, limitPerMetric)
+	if err != nil {
+		PromError(500, err.Error(), w)
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json")
-	w.Write([]byte(`{"status": "success", "data": {}}`))
+	w.WriteHeader(200)
+	for str := range res {
+		w.Write([]byte(str))
+	}
 }
 
 func (p *PromQueryLabelsController) Series(w http.ResponseWriter, r *http.Request) {

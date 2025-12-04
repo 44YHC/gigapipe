@@ -186,4 +186,6 @@ CREATE TABLE IF NOT EXISTS {{.DB}}.patterns {{.OnCluster}}(
 PARTITION BY toDate(fromUnixTimestamp(timestamp_10m*600))
 ORDER BY (timestamp_10m, fingerprint) {{.CREATE_SETTINGS}};
 
-ALTER TABLE IF EXISTS {{.DB}}.time_series ADD COLUMN IF NOT EXISTS metadata String;
+ALTER TABLE {{.DB}}.time_series ADD COLUMN IF NOT EXISTS metadata String DEFAULT '';
+
+ALTER TABLE {{.DB}}.time_series ADD COLUMN IF NOT EXISTS updated_at_ns Int64 DEFAULT toUnixTimestamp64Nano(now64(9));
