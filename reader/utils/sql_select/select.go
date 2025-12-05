@@ -6,22 +6,22 @@ import (
 )
 
 type Select struct {
-	distinct     bool
-	columns      []SQLObject
-	from         SQLObject
-	where        SQLCondition
-	preWhere     SQLCondition
-	having       SQLCondition
-	groupBy      []SQLObject
-	orderBy      []SQLObject
-	limit        SQLObject
-	limitBy      SQLObject
-	limitByExprs []SQLObject
-	offset       SQLObject
-	withs        []*With
-	joins        []*Join
-	windows      []*WindowFunction
-	settings     map[string]string
+	distinct bool
+	columns  []SQLObject
+	from     SQLObject
+	where    SQLCondition
+	preWhere SQLCondition
+	having   SQLCondition
+	groupBy  []SQLObject
+	orderBy  []SQLObject
+	limit    SQLObject
+	//limitBy      SQLObject
+	//limitByExprs []SQLObject
+	offset   SQLObject
+	withs    []*With
+	joins    []*Join
+	windows  []*WindowFunction
+	settings map[string]string
 }
 
 func (s *Select) Distinct(distinct bool) ISelect {
@@ -214,13 +214,11 @@ func (s *Select) GetLimit() SQLObject {
 }
 
 func (s *Select) LimitBy(limit SQLObject, exprs ...SQLObject) ISelect {
-	s.limitBy = limit
-	s.limitByExprs = exprs
 	return s
 }
 
 func (s *Select) GetLimitBy() (SQLObject, []SQLObject) {
-	return s.limitBy, s.limitByExprs
+	return nil, nil
 }
 
 func (s *Select) Offset(offset SQLObject) ISelect {
@@ -330,7 +328,7 @@ func (s *Select) String(ctx *Ctx, options ...int) (string, error) {
 		renderer.having,
 		renderer.window,
 		renderer.orderBy,
-		renderer.limitBy,
+		//renderer.limitBy,
 		renderer.limit,
 		renderer.offset,
 		renderer.settings,
@@ -537,7 +535,7 @@ func (r *selectRenderer) limit() error {
 }
 
 func (r *selectRenderer) limitBy() error {
-	if r.s.limitBy == nil || len(r.s.limitByExprs) == 0 {
+	/*if r.s.limitBy == nil || len(r.s.limitByExprs) == 0 {
 		return nil
 	}
 	limitStr, err := r.s.limitBy.String(r.ctx, r.options...)
@@ -561,7 +559,7 @@ func (r *selectRenderer) limitBy() error {
 			return err
 		}
 		r.res.WriteString(exprStr)
-	}
+	}*/
 	return nil
 }
 

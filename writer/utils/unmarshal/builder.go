@@ -340,12 +340,11 @@ func (p *parserDoer) onEntries(labels [][]string, timestampsNS []int64,
 
 		filtered = append(filtered, label)
 	}
-	labels = filtered
 
-	p.discoverServiceName(&labels)
+	p.discoverServiceName(&filtered)
 
 	dates := map[time.Time]bool{}
-	fp := fingerprintLabels(labels)
+	fp := fingerprintLabels(filtered)
 
 	p.tsSpl.spl.MMessage = append(p.tsSpl.spl.MMessage, message...)
 	p.tsSpl.spl.MValue = append(p.tsSpl.spl.MValue, value...)
@@ -372,7 +371,7 @@ func (p *parserDoer) onEntries(labels [][]string, timestampsNS []int64,
 
 	for d := range dates {
 		if maybeAddFp(d, fp, p.ctx.fpCache) {
-			_labels := encodeLabels(labels)
+			_labels := encodeLabels(filtered)
 			for t := range tps {
 				if !tps[t] {
 					continue
